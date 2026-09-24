@@ -1,0 +1,59 @@
+{
+  "name": "asus-control",
+  "productName": "ASUS Control",
+  "version": "0.1.0",
+  "description": "A G-Helper style control panel for ASUS laptops on Linux, built on top of asusd (asusctl)",
+  "main": "./out/main/index.js",
+  "license": "MPL-2.0",
+  "author": "youtonghy <youtonghy@gmail.com>",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "node --test --experimental-strip-types src/shared/*.test.ts src/shared/i18n/*.test.ts",
+    "dist": "electron-vite build && electron-builder --linux"
+  },
+  "build": {
+    "appId": "io.github.youtonghy.asuscontrol",
+    "productName": "ASUS Control",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "pacman",
+        "deb"
+      ],
+      "category": "System",
+      "icon": "resources/icon.png",
+      "syncDesktopName": true,
+      "executableName": "asus-control"
+    },
+    "asarUnpack": [
+      "resources/**"
+    ]
+  },
+  "dependencies": {
+    "dbus-next": "^0.10.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  },
+  "desktopName": "asus-control.desktop"
+}
