@@ -12,13 +12,22 @@ const api: AsusApi = {
   refresh: () => ipcRenderer.invoke('asus:refresh'),
   action: (a) => ipcRenderer.invoke('asus:action', a),
   displayState: () => ipcRenderer.invoke('display:state'),
+  pickIcc: () => ipcRenderer.invoke('display:pickIcc'),
+  history: () => ipcRenderer.invoke('sensors:history'),
+  auraAdvanced: () => ipcRenderer.invoke('aura:advanced'),
+  hotkeys: () => ipcRenderer.invoke('hotkeys:state'),
+  configureHotkeys: () => ipcRenderer.invoke('hotkeys:configure'),
+  runHotkey: (a) => ipcRenderer.invoke('hotkeys:run', a),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (s) => ipcRenderer.invoke('settings:set', s),
   info: () => ipcRenderer.invoke('app:info'),
   openExternal: (url) => ipcRenderer.invoke('app:open', url),
   onState: (cb) => subscribe('asus:state', cb),
   onSensors: (cb) => subscribe('sensors', cb),
-  onToast: (cb) => subscribe('toast', cb)
+  onToast: (cb) => subscribe('toast', cb),
+  onDisplay: (cb) => subscribe('display', cb),
+  onSettings: (cb) => subscribe('settings', cb),
+  onHotkeys: (cb) => subscribe('hotkeys', cb)
 }
 
 contextBridge.exposeInMainWorld('asus', api)

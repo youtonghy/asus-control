@@ -1,7 +1,7 @@
 {
   "name": "asus-control",
   "productName": "ASUS Control",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "A G-Helper style control panel for ASUS laptops on Linux, built on top of asusd (asusctl)",
   "main": "./out/main/index.js",
   "license": "MPL-2.0",

@@ -6,18 +6,25 @@ import {
   auraModeByRepr,
   hexToRgb,
   rgbToHex,
+  type AuraAdvanced,
   type AuraDevice,
   type AuraEffect,
   type AuraPowerState
 } from '@shared/asus'
 import { useStore, useT } from '../store'
 import { Button, Card, Row, Segmented, Toggle } from '../ui'
+import { KeyboardPainter } from '../components/KeyboardPainter'
 
 const SWATCHES = ['#ff0033', '#ff7a00', '#ffd400', '#00e676', '#00b8ff', '#3d5afe', '#b000ff', '#ffffff']
 
 export function Lighting(): ReactNode {
   const { snap } = useStore()
   const t = useT()
+  const [advanced, setAdvanced] = useState<AuraAdvanced[]>([])
+  const paths = snap?.aura.map((d) => d.path).join('|') ?? ''
+  useEffect(() => {
+    if (paths) void window.asus.auraAdvanced().then(setAdvanced)
+  }, [paths])
   if (!snap?.aura.length) {
     return (
       <div className="grid">
@@ -30,13 +37,18 @@ export function Lighting(): ReactNode {
   return (
     <div className="grid">
       {snap.aura.map((dev) => (
-        <AuraCards key={dev.path} dev={dev} multi={snap.aura.length > 1} />
+        <AuraCards
+          key={dev.path}
+          dev={dev}
+          multi={snap.aura.length > 1}
+          advanced={advanced.find((a) => a.path === dev.path)}
+        />
       ))}
     </div>
   )
 }
 
-function AuraCards({ dev, multi }: { dev: AuraDevice; multi: boolean }): ReactNode {
+function AuraCards({ dev, multi, advanced }: { dev: AuraDevice; multi: boolean; advanced?: AuraAdvanced }): ReactNode {
   const { act, busy } = useStore()
   const t = useT()
   const suffix = multi ? ` · ${dev.id}` : ''
@@ -141,6 +153,8 @@ function AuraCards({ dev, multi }: { dev: AuraDevice; multi: boolean }): ReactNo
           onChange={(v) => act({ type: 'setAuraBrightness', path: dev.path, value: v })}
         />
       </Card>
+
+      {advanced && <KeyboardPainter adv={advanced} />}
 
       {dev.power.length > 0 && <PowerStates dev={dev} />}
     </>

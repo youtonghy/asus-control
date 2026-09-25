@@ -13,13 +13,16 @@ feature set follow [G-Helper](https://github.com/seerge/g-helper).
 | --- | --- |
 | **Performance mode** | Silent / Balanced / Turbo, colour-coded like G-Helper. Follows Fn+F5 live and shows a notification when the mode changes. |
 | **GPU mode** | Eco / Standard / Ultimate, which sets `dgpu_disable` and `gpu_mux_mode` together. Shows the queued mode, which applies on reboot. |
-| **Screen** | Switch the panel refresh rate (KDE Plasma via `kscreen-doctor`) and panel overdrive. |
+| **Screen** | Switch the panel refresh rate (KDE Plasma, GNOME, Hyprland and Sway), panel overdrive and **colour gamut** (Native / sRGB / ICC profile on KDE Plasma, Native / sRGB on Hyprland). G-Helper-style **auto** modes drop to the lowest rate and turn overdrive off on battery, and restore them on AC. |
 | **Fans** | Drag-to-edit 8-point fan curves for each fan and each mode, with the live temperature marked and the saved curve shown as a ghost. Arrow keys work too. |
 | **Power limits** | SPL / sPPT / fPPT and NVIDIA sliders, per mode (asusd tuning group). |
-| **Lighting** | Aura effects with animated previews, colours, speed and direction, brightness, and LED power states (boot / awake / sleep / shutdown). |
+| **Lighting** | Aura effects with animated previews, colours, speed and direction, brightness, and LED power states (boot / awake / sleep / shutdown). **Per-key** and **per-zone** colours on keyboards that support them, painted on the model's real layout and sent with `DirectAddressingRaw`. |
+| **AniMe Matrix / Slash** | Display on/off, brightness, built-in animations per power state and auto-off rules for AniMe Matrix; mode, brightness, interval and when-to-show options for the Slash lightbar. The page only appears when asusd reports the device. |
 | **Battery** | Charge limit (with 60/80/100 presets), one-time full charge, health and cycles, switching modes automatically on AC or battery. |
 | **System** | CPU EPP per mode, firmware attributes (boot sound, MCU power save, …), tray, start hidden, start on login. |
 | **Live bar** | CPU and GPU temperatures, fan RPM, battery power draw, and the dGPU sleep state. |
+| **Monitor** | Charts of temperatures, fan speed, battery power and CPU clock over the last 5 / 15 / 30 minutes, with hover and keyboard read-out. |
+| **Hotkeys** | Global shortcuts through the XDG GlobalShortcuts portal: show/hide the window (ROG key by default), next performance mode, keyboard brightness, lighting effect, refresh rate, AniMe/Slash on/off. The same actions work as `asus-control --action=<id>` for desktops without the portal. |
 
 The UI adapts to what asusd reports. Cards for features your model lacks are
 hidden. It uses the system's light or dark theme.
@@ -62,7 +65,13 @@ set `ASUS_CONTROL_ALLOW_DGPU=1`.
   `sudo systemctl enable --now asusd`
 - Your user in one of the groups that asusd's D-Bus policy allows (`users`,
   `wheel`, `adm` or `sudo`)
-- Optional: KDE Plasma (`kscreen-doctor`) for refresh-rate switching
+- Optional, for refresh-rate switching: KDE Plasma (`kscreen-doctor`), GNOME
+  (Mutter), Hyprland (`hyprctl`) or Sway (`swaymsg`)
+- Optional, for hotkeys: `xdg-desktop-portal` with a GlobalShortcuts backend
+  (KDE Plasma, GNOME 48+, Hyprland). The portal needs the app's `.desktop`
+  file. The packages install one, and AppImage integrations are detected.
+- Optional, for per-key lighting: the keyboard layouts in
+  `/usr/share/rog-gui/layouts` (shipped with asusctl / rog-control-center)
 
 ## Development
 
@@ -74,20 +83,29 @@ npm run typecheck
 npm run dist       # AppImage + pacman + deb in dist/
 ```
 
+The pacman and deb targets use electron-builder's bundled `fpm`, whose Ruby
+links against `libcrypt.so.1`. On Arch-based systems, install
+`libxcrypt-compat` first. Without it the build fails with exit code 127.
+
 ## Architecture
 
 ```
 src/
   shared/asus.ts        asusd enums, value mappings, curve logic (pure, unit-tested)
+  shared/aura-advanced.ts  per-key / zone HID packets, aura_support.ron + layout parsing
+  shared/display-backends.ts  kscreen / Mutter / Hyprland / Sway parsing
   shared/api.ts         the typed window.asus bridge
   shared/i18n/          en (source) + zh-CN / ja / ko dictionaries, translator, locale resolution
   main/asusd.ts         D-Bus client (dbus-next): snapshot + PropertiesChanged → live updates
   main/sensors.ts       hwmon / power_supply / PCI runtime-PM polling (only while the window is shown)
-  main/display.ts       kscreen-doctor refresh-rate backend
+  main/display.ts       refresh-rate backends (kscreen-doctor, Mutter D-Bus, hyprctl, swaymsg)
+  main/hotkeys.ts       XDG GlobalShortcuts portal client
+  main/aura-support.ts  per-key / zone detection (same data as asusd)
   main/gpu-isolation.ts keeps Chromium off the dGPU
   main/index.ts         window, tray, IPC, settings, autostart
   preload/index.ts      contextBridge (sandboxed renderer, context isolation)
-  renderer/src/         React UI (pages/, components/FanCurveEditor.tsx)
+  renderer/src/         React UI (pages/, components/ for the fan curve editor,
+                        history charts and keyboard painter)
 ```
 
 ### asusd API notes
@@ -107,15 +125,21 @@ src/
   for the mode.
 - asusd rejects fan curves whose temperature or PWM points ever decrease. The
   editor pushes neighbouring points along to keep the curve valid.
+- AniMe (`xyz.ljones.Anime`) and Slash (`xyz.ljones.Slash`) objects live under
+  `/xyz/ljones/aura/` next to the keyboards, so children are told apart by
+  their interfaces.
+- asusd does not report whether a keyboard is per-key or zoned. The app reads
+  `/usr/share/asusd/aura_support.ron` and matches the DMI board name the way
+  asusd does. `BOARD_NAME=...` overrides the board name, as it does for asusd.
+  Per-key packets follow rog-aura's 11-packet layout, so the lid and per-key
+  lightbar LEDs (a 12th packet) are not addressable yet.
 
 ## Roadmap ideas (from G-Helper)
 
-- AniMe Matrix and Slash lightbar pages (asusd already exposes both)
-- Refresh-rate backends for GNOME (Mutter D-Bus) and Hyprland/Sway
-- Automatic 60 Hz on battery, and auto overdrive
-- Temperature and power charts (history)
-- Custom hotkeys (M4 / ROG key) through the asusd-user session daemon
-- Per-key RGB via `DirectAddressingRaw`
+- Custom AniMe images and GIFs through the asusd-user session daemon
+  (`InsertImage` / `InsertAsusGif` on the session bus)
+- Per-key effects (animated), and the lid / per-key lightbar LEDs
+- Refresh-rate switching on X11 (`xrandr`) and other wlroots compositors
 
 ## License
 

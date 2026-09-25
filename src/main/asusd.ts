@@ -7,14 +7,20 @@ import { EventEmitter } from 'node:events'
 import { readFile } from 'node:fs/promises'
 import dbus from 'dbus-next'
 import {
+  ANIME_BUILTINS,
+  ANIME_WRITABLE,
   ARMOURY_ROOT,
   ASUSD_ROOT,
   ASUSD_SERVICE,
   AURA_ROOT,
   PLATFORM_WRITABLE,
+  SLASH_WRITABLE,
   auraModeByIndex,
   gpuAttrsFor,
   validateCurve,
+  type AnimeBuiltins,
+  type AnimeProp,
+  type AnimeState,
   type ArmouryAttr,
   type AsusSnapshot,
   type AuraDevice,
@@ -24,7 +30,9 @@ import {
   type GpuMode,
   type PlatformProp,
   type PlatformState,
-  type Rgb
+  type Rgb,
+  type SlashProp,
+  type SlashState
 } from '@shared/asus'
 
 const { Variant } = dbus
@@ -35,6 +43,8 @@ const IFACE_PLATFORM = 'xyz.ljones.Platform'
 const IFACE_FANS = 'xyz.ljones.FanCurves'
 const IFACE_ARMOURY = 'xyz.ljones.AsusArmoury'
 const IFACE_AURA = 'xyz.ljones.Aura'
+const IFACE_ANIME = 'xyz.ljones.Anime'
+const IFACE_SLASH = 'xyz.ljones.Slash'
 const IFACE_PROPS = 'org.freedesktop.DBus.Properties'
 
 type Raw = Record<string, unknown>
@@ -83,6 +93,9 @@ export class AsusdClient extends EventEmitter {
   private root: ProxyObject | null = null
   private armouryObjs = new Map<string, ProxyObject>()
   private auraObjs = new Map<string, ProxyObject>()
+  // AniMe and Slash devices live under /xyz/ljones/aura too, next to keyboards.
+  private animeObj: ProxyObject | null = null
+  private slashObj: ProxyObject | null = null
   private refreshTimer: NodeJS.Timeout | null = null
   private retryTimer: NodeJS.Timeout | null = null
   private product = ''
@@ -92,7 +105,9 @@ export class AsusdClient extends EventEmitter {
     platform: null,
     armoury: [],
     fans: null,
-    aura: []
+    aura: [],
+    anime: null,
+    slash: null
   }
 
   async start(): Promise<void> {
@@ -136,6 +151,8 @@ export class AsusdClient extends EventEmitter {
     this.root = null
     this.armouryObjs.clear()
     this.auraObjs.clear()
+    this.animeObj = null
+    this.slashObj = null
     if (!this.retryTimer) {
       this.retryTimer = setTimeout(() => {
         this.retryTimer = null
@@ -151,6 +168,7 @@ export class AsusdClient extends EventEmitter {
       [AURA_ROOT, this.auraObjs]
     ] as const) {
       map.clear()
+      if (root === AURA_ROOT) this.animeObj = this.slashObj = null
       let parent: ProxyObject
       try {
         parent = await bus.getProxyObject(ASUSD_SERVICE, root)
@@ -159,7 +177,10 @@ export class AsusdClient extends EventEmitter {
       }
       for (const node of parent.nodes) {
         const obj = await bus.getProxyObject(ASUSD_SERVICE, node)
-        map.set(node, obj)
+        if (root === AURA_ROOT && IFACE_ANIME in obj.interfaces) this.animeObj = obj
+        else if (root === AURA_ROOT && IFACE_SLASH in obj.interfaces) this.slashObj = obj
+        else if (root === AURA_ROOT && !(IFACE_AURA in obj.interfaces)) continue
+        else map.set(node, obj)
         this.watch(obj)
       }
     }
@@ -189,9 +210,14 @@ export class AsusdClient extends EventEmitter {
     if (!this.root) return this.snapshot
     try {
       const platform = await this.readPlatform()
-      const [armoury, aura] = await Promise.all([this.readArmoury(), this.readAura()])
+      const [armoury, aura, anime, slash] = await Promise.all([
+        this.readArmoury(),
+        this.readAura(),
+        this.readAnime(),
+        this.readSlash()
+      ])
       const fans = platform ? await this.readFanCurves(platform.profile).catch(() => null) : null
-      this.snapshot = { connected: true, product: this.product, platform, armoury, fans, aura }
+      this.snapshot = { connected: true, product: this.product, platform, armoury, fans, aura, anime, slash }
       this.emit('change', this.snapshot)
     } catch (e) {
       this.fail(e)
@@ -311,6 +337,53 @@ export class AsusdClient extends EventEmitter {
     return devices
   }
 
+  private async readAnime(): Promise<AnimeState | null> {
+    const obj = this.animeObj
+    if (!obj) return null
+    try {
+      const r = unwrap(await this.props(obj).GetAll(IFACE_ANIME))
+      const anims = Array.isArray(r.BuiltinAnimations) ? (r.BuiltinAnimations as string[]) : []
+      const keys = Object.keys(ANIME_BUILTINS) as (keyof typeof ANIME_BUILTINS)[]
+      const builtins = Object.fromEntries(keys.map((k, i) => [k, anims[i] ?? ANIME_BUILTINS[k][0]])) as AnimeBuiltins
+      return {
+        path: obj.path,
+        displayEnabled: r.EnableDisplay === true,
+        brightness: typeof r.Brightness === 'number' ? r.Brightness : 0,
+        builtinsEnabled: r.BuiltinsEnabled === true,
+        builtins,
+        offWhenUnplugged: r.OffWhenUnplugged === true,
+        offWhenSuspended: r.OffWhenSuspended === true,
+        offWhenLidClosed: r.OffWhenLidClosed === true
+      }
+    } catch {
+      return null
+    }
+  }
+
+  private async readSlash(): Promise<SlashState | null> {
+    const obj = this.slashObj
+    if (!obj) return null
+    try {
+      const r = unwrap(await this.props(obj).GetAll(IFACE_SLASH))
+      const n = (k: string): number => (typeof r[k] === 'number' ? (r[k] as number) : 0)
+      return {
+        path: obj.path,
+        enabled: r.Enabled === true,
+        brightness: n('Brightness'),
+        interval: n('Interval'),
+        mode: n('Mode'),
+        showOnBoot: r.ShowOnBoot === true,
+        showOnShutdown: r.ShowOnShutdown === true,
+        showOnSleep: r.ShowOnSleep === true,
+        showOnBattery: r.ShowOnBattery === true,
+        showBatteryWarning: r.ShowBatteryWarning === true,
+        showOnLidClosed: r.ShowOnLidClosed === true
+      }
+    } catch {
+      return null
+    }
+  }
+
   async readFanCurves(profile: number): Promise<FanCurve[]> {
     if (!this.root) throw new Error('Not connected to asusd')
     return parseCurves(await this.root.getInterface(IFACE_FANS).FanCurveData(profile))
@@ -340,6 +413,10 @@ export class AsusdClient extends EventEmitter {
     return this.wrap(() =>
       this.props(this.requireRoot()).Set(IFACE_PLATFORM, prop, new Variant(sig, sig === 'b' ? Boolean(value) : Number(value)))
     )
+  }
+
+  nextPlatformProfile(): Promise<void> {
+    return this.wrap(() => this.requireRoot().getInterface(IFACE_PLATFORM).NextPlatformProfile())
   }
 
   oneShotFullCharge(): Promise<void> {
@@ -423,5 +500,31 @@ export class AsusdClient extends EventEmitter {
         new Variant('(a(ubbbb))', [states.map((s) => [s.zone, s.boot, s.awake, s.sleep, s.shutdown])])
       )
     )
+  }
+
+  /** Raw HID packets for per-key / zoned colours (see shared/aura-advanced). */
+  setAuraDirect(path: string, packets: number[][]): Promise<void> {
+    return this.wrap(() => this.auraObj(path).getInterface(IFACE_AURA).DirectAddressingRaw(packets))
+  }
+
+  setAnime(prop: AnimeProp, value: boolean | number | AnimeBuiltins): Promise<void> {
+    const obj = this.animeObj
+    if (!obj) return Promise.reject(new Error('No AniMe Matrix display'))
+    const sig = ANIME_WRITABLE[prop]
+    let v: unknown = value
+    if (sig === '(ssss)') {
+      const b = value as AnimeBuiltins
+      v = [b.boot, b.awake, b.sleep, b.shutdown]
+    } else if (sig === 'b') v = Boolean(value)
+    else v = Number(value)
+    return this.wrap(() => this.props(obj).Set(IFACE_ANIME, prop, new Variant(sig, v)))
+  }
+
+  setSlash(prop: SlashProp, value: boolean | number): Promise<void> {
+    const obj = this.slashObj
+    if (!obj) return Promise.reject(new Error('No Slash lightbar'))
+    const sig = SLASH_WRITABLE[prop]
+    const v = sig === 'b' ? Boolean(value) : Math.max(0, Math.min(255, Math.round(Number(value))))
+    return this.wrap(() => this.props(obj).Set(IFACE_SLASH, prop, new Variant(sig, v)))
   }
 }

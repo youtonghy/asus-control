@@ -1,8 +1,18 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { PPT_ATTRS, PlatformProfile, armouryMeta, isRangeAttr, type AppSettings, type ArmouryAttr, type PlatformProp } from '@shared/asus'
+import {
+  HOTKEY_ACTIONS,
+  PPT_ATTRS,
+  PlatformProfile,
+  armouryMeta,
+  isRangeAttr,
+  type AppSettings,
+  type ArmouryAttr,
+  type HotkeyState,
+  type PlatformProp
+} from '@shared/asus'
 import { LOCALES, attrDescription, attrLabel, attrValue, profileName, resolveLocale } from '@shared/i18n'
 import { rich, useStore, useT } from '../store'
-import { Button, Card, Row, Segmented, Slider, Toggle } from '../ui'
+import { Button, Card, Note, Row, Segmented, Slider, Toggle } from '../ui'
 
 const EPP_ROWS: { prop: PlatformProp; key: 'quiet' | 'balanced' | 'performance'; profile: number }[] = [
   { prop: 'ProfileQuietEpp', key: 'quiet', profile: PlatformProfile.Quiet },
@@ -58,6 +68,7 @@ export function System(): ReactNode {
       )}
 
       <AppSettingsCard />
+      <HotkeysCard />
       <AboutCard />
     </div>
   )
@@ -150,6 +161,61 @@ function AppSettingsCard(): ReactNode {
           onChange={(v) => void updateSettings({ autostart: v })}
         />
       </Row>
+    </Card>
+  )
+}
+
+function HotkeysCard(): ReactNode {
+  const { snap, display, settings, updateSettings, toast } = useStore()
+  const t = useT()
+  const [state, setState] = useState<HotkeyState | null>(null)
+  useEffect(() => {
+    void window.asus.hotkeys().then(setState)
+    return window.asus.onHotkeys(setState)
+  }, [])
+  if (!settings || !state) return null
+  // Only offer actions this laptop and desktop can do (the portal still gets all of them).
+  const kbd = snap?.aura[0]
+  const available = HOTKEY_ACTIONS.filter((a) => {
+    if (a === 'cycle-kbd-brightness') return !!kbd
+    if (a === 'cycle-aura-mode') return !!kbd?.effect && kbd.supportedModes.length > 1
+    if (a === 'toggle-refresh') return (display?.rates.length ?? 0) > 1
+    if (a === 'toggle-matrix') return !!(snap?.anime || snap?.slash)
+    return true
+  })
+  const trigger = (id: string): string => state.bindings.find((b) => b.id === id)?.trigger || t('hotkeys.unassigned')
+  const fail = (e: unknown): void =>
+    toast({ kind: 'error', text: t('error.failed', { message: e instanceof Error ? e.message : String(e) }) })
+  return (
+    <Card
+      title={t('hotkeys.title')}
+      icon="keyboard"
+      actions={
+        state.status === 'listening' && state.version >= 2 ? (
+          <Button onClick={() => void window.asus.configureHotkeys().catch(fail)}>{t('hotkeys.configure')}</Button>
+        ) : undefined
+      }
+    >
+      <Row label={t('hotkeys.enable')} hint={t('hotkeys.enableHint')}>
+        <Toggle
+          label={t('hotkeys.enable')}
+          checked={settings.hotkeys}
+          onChange={(v) => void updateSettings({ hotkeys: v })}
+        />
+      </Row>
+      {state.status === 'starting' && <p className="muted small">{t('hotkeys.starting')}</p>}
+      {state.status === 'unavailable' && <Note kind="warn">{t('hotkeys.unavailable', { error: state.error ?? '' })}</Note>}
+      {available.map((a) => (
+        <Row key={a} label={t(`hotkey.${a}`)} hint={state.status === 'listening' ? trigger(a) : undefined}>
+          <Button onClick={() => void window.asus.runHotkey(a).catch(fail)}>{t('hotkeys.run')}</Button>
+        </Row>
+      ))}
+      <p className="muted small">
+        {rich(t, 'hotkeys.cli', {
+          cmd: <code>asus-control --action=cycle-profile</code>,
+          actions: available.join(', ')
+        })}
+      </p>
     </Card>
   )
 }

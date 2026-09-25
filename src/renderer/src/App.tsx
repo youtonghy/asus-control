@@ -8,12 +8,27 @@ import { FansPower } from './pages/FansPower'
 import { Lighting } from './pages/Lighting'
 import { Battery } from './pages/Battery'
 import { System } from './pages/System'
+import { Matrix } from './pages/Matrix'
+import { Monitor } from './pages/Monitor'
+import type { AsusSnapshot } from '@shared/asus'
 
-const PAGES: { id: string; label: MessageKey; icon: string; el: () => ReactNode }[] = [
+interface Page {
+  id: string
+  label: MessageKey
+  icon: string
+  el: () => ReactNode
+  /** Shown only when this returns true. */
+  when?: (s: AsusSnapshot | null) => boolean
+}
+
+const PAGES: Page[] = [
   { id: 'overview', label: 'nav.overview', icon: 'home', el: Overview },
   { id: 'fans', label: 'nav.fans', icon: 'fan', el: FansPower },
   { id: 'lighting', label: 'nav.lighting', icon: 'light', el: Lighting },
+  { id: 'anime', label: 'nav.anime', icon: 'matrix', el: Matrix, when: (s) => !!s?.anime },
+  { id: 'slash', label: 'nav.slash', icon: 'matrix', el: Matrix, when: (s) => !s?.anime && !!s?.slash },
   { id: 'battery', label: 'nav.battery', icon: 'battery', el: Battery },
+  { id: 'monitor', label: 'nav.monitor', icon: 'chart', el: Monitor },
   { id: 'system', label: 'nav.system', icon: 'cog', el: System }
 ]
 
@@ -24,7 +39,9 @@ export function App(): ReactNode {
   const { snap, toasts } = useStore()
   const t = useT()
   const [page, setPage] = useState('overview')
-  const Page = PAGES.find((p) => p.id === page)!.el
+  const pages = PAGES.filter((p) => !p.when || p.when(snap))
+  // A device page disappears if asusd loses the device; fall back to Overview.
+  const Page = (pages.find((p) => p.id === page) ?? pages[0]).el
   const tone = snap?.platform ? PROFILE_TONE[snap.platform.profile] : 'balanced'
 
   return (
@@ -37,7 +54,7 @@ export function App(): ReactNode {
             <small>{snap?.product || 'Linux'}</small>
           </div>
         </div>
-        {PAGES.map((p) => (
+        {pages.map((p) => (
           <button
             key={p.id}
             type="button"

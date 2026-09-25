@@ -54,7 +54,14 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M12 11v6M12 7.5v.01" />
     </>
   ),
-  warn: <path d="M12 3 2 20h20L12 3Zm0 6v5m0 3v.01" />
+  warn: <path d="M12 3 2 20h20L12 3Zm0 6v5m0 3v.01" />,
+  chart: <path d="M3 3v18h18M7 15l4-5 3 3 5-7" />,
+  matrix: (
+    <>
+      <rect x="3" y="4" width="18" height="14" rx="2" />
+      <path d="M7 8h.01M10 8h.01M13 11h.01M16 11h.01M7 14h.01M10 14h.01M13 8h.01M16 14h.01" />
+    </>
+  )
 }
 
 export function Icon({ name, size = 18 }: { name: string; size?: number }): ReactNode {

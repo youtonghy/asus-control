@@ -1,8 +1,16 @@
 import type { ReactNode } from 'react'
-import { auraModeByRepr, availableGpuModes, gpuModeFrom, rgbToHex, sortProfiles, type GpuMode } from '@shared/asus'
+import {
+  auraModeByRepr,
+  availableGpuModes,
+  gpuModeFrom,
+  rgbToHex,
+  sortProfiles,
+  type GamutMode,
+  type GpuMode
+} from '@shared/asus'
 import { profileHint, profileName } from '@shared/i18n'
 import { rich, useArmoury, useStore, useT } from '../store'
-import { Card, Note, Row, Segmented, Slider, Toggle } from '../ui'
+import { Button, Card, Note, Row, Segmented, Slider, Toggle } from '../ui'
 
 const PROFILE_ICON: Record<number, string> = { 0: 'scale', 1: 'flame', 2: 'leaf', 3: 'leaf', 4: 'cog' }
 const PROFILE_TONE: Record<number, string> = { 0: 'balanced', 1: 'turbo', 2: 'silent', 3: 'silent', 4: 'balanced' }
@@ -88,11 +96,21 @@ function GpuCard(): ReactNode {
 }
 
 function ScreenCard(): ReactNode {
-  const { display, act, busy, refreshDisplay } = useStore()
+  const { display, act, busy, refreshDisplay, settings, updateSettings } = useStore()
   const t = useT()
   const overdrive = useArmoury('panel_overdrive')
   const hasRates = display && display.backend !== 'none' && display.rates.length > 1
-  if (!hasRates && !overdrive) return null
+  const gamut = display?.gamut
+  if (!hasRates && !overdrive && !gamut) return null
+  const setGamut = async (mode: GamutMode, pick = false): Promise<void> => {
+    let icc = gamut?.icc ?? undefined
+    if (mode === 'icc' && (pick || !icc)) {
+      const chosen = await window.asus.pickIcc()
+      if (!chosen) return
+      icc = chosen
+    }
+    await act({ type: 'setGamut', mode, icc })
+  }
   return (
     <Card title={t('screen.title')} icon="monitor">
       {hasRates && (
@@ -109,6 +127,34 @@ function ScreenCard(): ReactNode {
           />
         </Row>
       )}
+      {hasRates && settings && (
+        <Row label={t('screen.autoRefresh')} hint={t('screen.autoRefreshHint')}>
+          <Toggle
+            label={t('screen.autoRefresh')}
+            checked={settings.autoRefresh}
+            onChange={(v) => void updateSettings({ autoRefresh: v })}
+          />
+        </Row>
+      )}
+      {gamut && (
+        <Row
+          label={t('screen.gamut')}
+          hint={gamut.mode === 'icc' && gamut.icc ? gamut.icc.split('/').pop() : t('screen.gamutHint')}
+        >
+          <div className="row-inline">
+            <Segmented
+              label={t('screen.gamut')}
+              value={gamut.mode ?? undefined}
+              busy={busy.has('setGamut')}
+              options={gamut.modes.map((m) => ({ value: m, label: t(`screen.gamut.${m}`) }))}
+              onChange={(m) => void setGamut(m)}
+            />
+            {gamut.mode === 'icc' && (
+              <Button onClick={() => void setGamut('icc', true)}>{t('screen.iccChange')}</Button>
+            )}
+          </div>
+        </Row>
+      )}
       {overdrive && (
         <Row label={t('screen.overdrive')} hint={t('screen.overdriveHint')}>
           <Toggle
@@ -119,7 +165,16 @@ function ScreenCard(): ReactNode {
           />
         </Row>
       )}
-      {!hasRates && display?.backend === 'none' && <p className="muted small">{t('screen.kdeOnly')}</p>}
+      {overdrive && settings && (
+        <Row label={t('screen.autoOverdrive')} hint={t('screen.autoOverdriveHint')}>
+          <Toggle
+            label={t('screen.autoOverdrive')}
+            checked={settings.autoOverdrive}
+            onChange={(v) => void updateSettings({ autoOverdrive: v })}
+          />
+        </Row>
+      )}
+      {!hasRates && display?.backend === 'none' && <p className="muted small">{t('screen.unsupported')}</p>}
     </Card>
   )
 }

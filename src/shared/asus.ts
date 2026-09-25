@@ -1,6 +1,8 @@
 // Shared types and value mappings for the asusd (asusctl >= 6.x) D-Bus API.
 // Everything here is pure so it can be used from main, preload and renderer.
 
+import type { KeyLayout } from './aura-advanced.ts'
+
 export const ASUSD_SERVICE = 'xyz.ljones.Asusd'
 export const ASUSD_ROOT = '/xyz/ljones'
 export const ARMOURY_ROOT = '/xyz/ljones/asus_armoury'
@@ -309,6 +311,92 @@ export function hexToRgb(hex: string): Rgb {
   return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)]
 }
 
+// ---------------------------------------------------------------- AniMe Matrix / Slash
+
+/** Built-in AniMe animations per power state (rog-anime `Animations`, sent as variant names). */
+export const ANIME_BUILTINS = {
+  boot: ['GlitchConstruction', 'StaticEmergence'],
+  awake: ['BinaryBannerScroll', 'RogLogoGlitch'],
+  sleep: ['BannerSwipe', 'Starfield'],
+  shutdown: ['GlitchOut', 'SeeYa']
+} as const
+
+export type AnimeBuiltins = { [K in keyof typeof ANIME_BUILTINS]: string }
+
+export interface AnimeState {
+  path: string
+  displayEnabled: boolean
+  /** 0 Off, 1 Low, 2 Med, 3 High */
+  brightness: number
+  builtinsEnabled: boolean
+  builtins: AnimeBuiltins
+  offWhenUnplugged: boolean
+  offWhenSuspended: boolean
+  offWhenLidClosed: boolean
+}
+
+/** Writable `xyz.ljones.Anime` properties with their D-Bus signature. */
+export const ANIME_WRITABLE = {
+  EnableDisplay: 'b',
+  Brightness: 'u',
+  BuiltinsEnabled: 'b',
+  BuiltinAnimations: '(ssss)',
+  OffWhenUnplugged: 'b',
+  OffWhenSuspended: 'b',
+  OffWhenLidClosed: 'b'
+} as const
+export type AnimeProp = keyof typeof ANIME_WRITABLE
+
+/** rog-slash `SlashMode` values, in the order G-Helper lists them. */
+export const SLASH_MODES: { id: number; slug: string }[] = [
+  { id: 0x06, slug: 'static' },
+  { id: 0x10, slug: 'bounce' },
+  { id: 0x12, slug: 'slash' },
+  { id: 0x13, slug: 'loading' },
+  { id: 0x1d, slug: 'bitstream' },
+  { id: 0x1a, slug: 'transmission' },
+  { id: 0x19, slug: 'flow' },
+  { id: 0x25, slug: 'flux' },
+  { id: 0x24, slug: 'phantom' },
+  { id: 0x26, slug: 'spectrum' },
+  { id: 0x32, slug: 'hazard' },
+  { id: 0x33, slug: 'interfacing' },
+  { id: 0x34, slug: 'ramp' },
+  { id: 0x42, slug: 'gameover' },
+  { id: 0x43, slug: 'start' },
+  { id: 0x44, slug: 'buzzer' }
+]
+
+export interface SlashState {
+  path: string
+  enabled: boolean
+  /** 0..255 */
+  brightness: number
+  /** Pause between animations, 0..5 */
+  interval: number
+  mode: number
+  showOnBoot: boolean
+  showOnShutdown: boolean
+  showOnSleep: boolean
+  showOnBattery: boolean
+  showBatteryWarning: boolean
+  showOnLidClosed: boolean
+}
+
+export const SLASH_WRITABLE = {
+  Enabled: 'b',
+  Brightness: 'y',
+  Interval: 'y',
+  Mode: 'y',
+  ShowOnBoot: 'b',
+  ShowOnShutdown: 'b',
+  ShowOnSleep: 'b',
+  ShowOnBattery: 'b',
+  ShowBatteryWarning: 'b',
+  ShowOnLidClosed: 'b'
+} as const
+export type SlashProp = keyof typeof SLASH_WRITABLE
+
 // ---------------------------------------------------------------- Snapshot
 
 export interface PlatformState {
@@ -338,6 +426,8 @@ export interface AsusSnapshot {
   /** Fan curves of the active profile; null when unsupported. */
   fans: FanCurve[] | null
   aura: AuraDevice[]
+  anime: AnimeState | null
+  slash: SlashState | null
 }
 
 export interface Sensors {
@@ -367,12 +457,31 @@ export interface DisplayMode {
   refresh: number
 }
 
+export type DisplayBackend = 'kscreen' | 'gnome' | 'hyprland' | 'sway' | 'none'
+
+/**
+ * G-Helper's colour gamut, as the compositor's colour management sees it:
+ * `native` shows sRGB content unmapped on the wide-gamut panel (vivid),
+ * `srgb` maps it with the panel's EDID primaries (accurate), `icc` uses a
+ * profile file (e.g. ASUS's own profiles copied from Windows).
+ */
+export type GamutMode = 'native' | 'srgb' | 'icc'
+
+export interface GamutState {
+  /** null when the compositor reports a source we don't map. */
+  mode: GamutMode | null
+  icc: string | null
+  modes: GamutMode[]
+}
+
 export interface DisplayState {
-  backend: 'kscreen' | 'none'
+  backend: DisplayBackend
   output: string | null
   currentModeId: string | null
   /** Refresh rates available at the current resolution. */
   rates: DisplayMode[]
+  /** Colour gamut control; null when the desktop has none. */
+  gamut: GamutState | null
 }
 
 /** Platform properties that may be written, with their D-Bus signature. */
@@ -407,6 +516,11 @@ export type AsusAction =
   | { type: 'setAuraPower'; path: string; power: AuraPowerState[] }
   | { type: 'oneShotFullCharge' }
   | { type: 'setDisplayMode'; modeId: string }
+  | { type: 'setGamut'; mode: GamutMode; icc?: string }
+  | { type: 'setAnime'; prop: AnimeProp; value: boolean | number | AnimeBuiltins }
+  | { type: 'setSlash'; prop: SlashProp; value: boolean | number }
+  /** Per-key / per-zone colours, keyed by rog-aura `LedCode` names. */
+  | { type: 'setAuraDirect'; path: string; colours: Record<string, Rgb> }
 
 export interface AppSettings {
   /** 'system' or a locale id from shared/i18n. */
@@ -414,4 +528,62 @@ export interface AppSettings {
   closeToTray: boolean
   startHidden: boolean
   autostart: boolean
+  /** G-Helper "Auto" refresh: lowest rate on battery, highest on AC. */
+  autoRefresh: boolean
+  /** Panel overdrive on AC only. */
+  autoOverdrive: boolean
+  /** Register global shortcuts through the XDG portal. */
+  hotkeys: boolean
+  /** Last per-key / zone colours, restored at startup while `customLightingActive`. */
+  customLighting: Record<string, Rgb>
+  customLightingActive: boolean
+}
+
+// ---------------------------------------------------------------- Hotkeys
+
+/** Actions that can be bound to keys (portal shortcuts or `--action=<id>`). */
+export const HOTKEY_ACTIONS = [
+  'toggle-window',
+  'cycle-profile',
+  'cycle-kbd-brightness',
+  'cycle-aura-mode',
+  'toggle-refresh',
+  'toggle-matrix'
+] as const
+export type HotkeyAction = (typeof HOTKEY_ACTIONS)[number]
+
+export interface HotkeyBinding {
+  id: HotkeyAction
+  /** Human-readable trigger from the portal, empty when unassigned. */
+  trigger: string
+}
+
+export interface HotkeyState {
+  status: 'off' | 'starting' | 'listening' | 'unavailable'
+  /** GlobalShortcuts portal version; ConfigureShortcuts needs 2. */
+  version: number
+  bindings: HotkeyBinding[]
+  error?: string
+}
+
+// ---------------------------------------------------------------- History
+
+export interface HistorySample {
+  /** ms since epoch */
+  t: number
+  cpu: number | null
+  gpu: number | null
+  fans: number[]
+  /** Battery power, positive while charging */
+  watts: number | null
+  mhz: number | null
+}
+
+/** Advanced (per-key / zoned) lighting support for an Aura device. */
+export interface AuraAdvanced {
+  path: string
+  kind: 'per-key' | 'zoned'
+  zones: string[]
+  layoutName: string
+  layout: KeyLayout | null
 }

@@ -14,6 +14,10 @@
   --turbo: #ff4d5e;
   --radius: 12px;
   --accent: var(--balanced);
+  /* Chart series (categorical slots 1-3, validated against --surface in both themes). */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
   --font-latin: 'Inter', 'Noto Sans';
   font-family: var(--font-latin), system-ui, sans-serif;
   font-size: 14px;
@@ -44,6 +48,9 @@
     --silent: #16a36a;
     --balanced: #2f6fe6;
     --turbo: #e0243a;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
   }
 }
 
@@ -864,8 +871,53 @@ code {
   }
 }
 
+/* Slash lightbar previews: a row of short diagonal segments. */
+.slash-preview {
+  width: 100%;
+  height: 22px;
+  border-radius: 6px;
+  background: repeating-linear-gradient(115deg, #111 0 6px, var(--accent) 6px 10px);
+  opacity: 0.9;
+}
+.slash-static {
+  animation: none;
+}
+.slash-bounce,
+.slash-loading,
+.slash-ramp,
+.slash-start {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.slash-slash,
+.slash-flow,
+.slash-flux,
+.slash-bitstream,
+.slash-transmission,
+.slash-interfacing {
+  background: linear-gradient(90deg, #111 0%, var(--accent) 50%, #111 100%);
+  background-size: 200% 100%;
+  animation: wave 2s linear infinite;
+}
+.slash-spectrum,
+.slash-phantom {
+  background: linear-gradient(90deg, red, orange, yellow, lime, cyan, blue, violet, red);
+  background-size: 200% 100%;
+  animation: wave 3s linear infinite;
+}
+.slash-hazard,
+.slash-gameover,
+.slash-buzzer {
+  background: repeating-linear-gradient(115deg, #111 0 6px, var(--hot) 6px 10px);
+  animation: pulse 0.8s ease-in-out infinite;
+}
+.mode-tile:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .mode-preview {
+  .mode-preview,
+  .slash-preview {
     animation: none !important;
   }
 }
@@ -981,4 +1033,218 @@ code {
     transform: translateY(8px);
     opacity: 0;
   }
+}
+
+/* ------------------------------------------------------------ per-key painter */
+
+.zone-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.zone-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.zone-btn .swatch {
+  border: 1px solid var(--border);
+}
+
+.keyboard-scroll {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+.keyboard {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  touch-action: none;
+  user-select: none;
+}
+
+.key rect {
+  fill: var(--surface-2);
+  stroke: var(--border);
+  stroke-width: 0.03;
+  cursor: crosshair;
+}
+
+.key:hover rect,
+.key:focus-visible rect {
+  stroke: var(--text);
+  stroke-width: 0.05;
+}
+
+.key:focus {
+  outline: none;
+}
+
+.key text {
+  font-size: 0.3px;
+  fill: var(--text);
+  pointer-events: none;
+}
+
+.key text.on-light {
+  fill: #111;
+}
+
+.key-fixed rect {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------ monitor charts */
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.filter-row p {
+  margin: 0;
+}
+
+.toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  column-gap: 24px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-series {
+  font-weight: 600;
+}
+
+.line-key {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--series-1);
+}
+
+.line-key[data-slot='2'] {
+  background: var(--series-2);
+}
+.line-key[data-slot='3'] {
+  background: var(--series-3);
+}
+
+.chart-plot {
+  position: relative;
+}
+
+.chart-plot svg {
+  display: block;
+  border-radius: 6px;
+}
+
+.chart-plot svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-zero {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+.chart-axis {
+  fill: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-line[data-slot='2'],
+.chart-dot[data-slot='2'] {
+  stroke: var(--series-2);
+}
+.chart-line[data-slot='3'],
+.chart-dot[data-slot='3'] {
+  stroke: var(--series-3);
+}
+
+.chart-cross {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.chart-dot {
+  fill: var(--surface);
+  stroke: var(--series-1);
+  stroke-width: 2;
+}
+
+.chart-tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  min-width: 110px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.chart-tip > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-tip strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.row-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }

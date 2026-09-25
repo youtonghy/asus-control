@@ -68,7 +68,13 @@ export function StoreProvider({ children }: { children: ReactNode }): ReactNode 
     void window.asus.snapshot().then(setSnap)
     void window.asus.getSettings().then(setSettings)
     void refreshDisplay()
-    const offs = [window.asus.onState(setSnap), window.asus.onSensors(setSensors), window.asus.onToast(toast)]
+    const offs = [
+      window.asus.onState(setSnap),
+      window.asus.onSensors(setSensors),
+      window.asus.onToast(toast),
+      window.asus.onDisplay(setDisplay),
+      window.asus.onSettings(setSettings)
+    ]
     return () => offs.forEach((off) => off())
   }, [refreshDisplay, toast])
 
