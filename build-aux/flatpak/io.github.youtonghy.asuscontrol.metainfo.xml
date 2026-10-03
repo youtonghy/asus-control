@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.youtonghy.asuscontrol</id>
+  <name>ASUS Control</name>
+  <summary>G-Helper style control panel for ASUS laptops, built on top of asusd (asusctl)</summary>
+  <description>
+    <p>
+      ASUS Control is a lightweight control panel for ASUS laptops on Linux, in the
+      spirit of G-Helper on Windows. It talks to asusd (asusctl) over D-Bus to manage
+      fan curves, performance profiles, keyboard lighting and GPU modes, and reads
+      temperatures, fan speeds and battery state straight from sysfs.
+    </p>
+  </description>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MPL-2.0</project_license>
+  <developer id="io.github.youtonghy">
+    <name>youtonghy</name>
+  </developer>
+  <url type="homepage">https://github.com/youtonghy/asus-control</url>
+  <url type="bugtracker">https://github.com/youtonghy/asus-control/issues</url>
+  <launchable type="desktop-id">io.github.youtonghy.asuscontrol.desktop</launchable>
+  <releases>
+    <release version="0.1.0" date="2026-02-01">
+      <description>
+        <p>First release with Flatpak packaging.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1"/>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+</component>

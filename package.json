@@ -35,6 +35,14 @@
       "syncDesktopName": true,
       "executableName": "asus-control"
     },
+    "pacman": {
+      "depends": [
+        "gtk3",
+        "nss",
+        "libxss",
+        "libnotify"
+      ]
+    },
     "asarUnpack": [
       "resources/**"
     ]

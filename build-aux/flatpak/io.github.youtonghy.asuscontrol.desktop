@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=ASUS Control
+GenericName=ASUS Laptop Control Panel
+Comment=A G-Helper style control panel for ASUS laptops on Linux, built on top of asusd (asusctl)
+Exec=asus-control
+Icon=io.github.youtonghy.asuscontrol
+Terminal=false
+Categories=System;Utility;
+StartupWMClass=asus-control
+SingleMainWindow=true
+X-GNOME-UsesNotifications=true

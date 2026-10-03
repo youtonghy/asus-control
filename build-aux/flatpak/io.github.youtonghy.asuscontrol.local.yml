@@ -1,0 +1,63 @@
+# Local verification variant of the Flathub-style manifest:
+# identical build steps, but sources point at the local checkout and the
+# cached Electron zip, so no git tag or download is required.
+# Build with:
+#   flatpak-builder --user --install --force-clean --no-sandbox \
+#     build-flatpak build-aux/flatpak/io.github.youtonghy.asuscontrol.local.yml
+app-id: io.github.youtonghy.asuscontrol
+runtime: org.freedesktop.Platform
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: "25.08"
+command: asus-control
+separate-locales: false
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.gnome.Mutter.DisplayConfig
+  - --system-talk-name=xyz.ljones.Asusd
+
+modules:
+  - name: asus-control
+    buildsystem: simple
+    build-options:
+      network: true
+      build-args:
+        - --share=network
+      append-path: /usr/lib/sdk/node24/bin
+      env:
+        ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        npm_config_cache: /run/build/asus-control/npm-cache
+    build-commands:
+      - npm ci --no-audit --no-fund
+      - npx electron-vite build
+      - mkdir -p /app/asus-control/resources/app
+      - cp -a out resources package.json package-lock.json /app/asus-control/resources/app/
+      - cd /app/asus-control/resources/app && npm ci --omit=dev --no-audit --no-fund
+      - unzip -q electron/electron-v44.4.5-linux-x64.zip -d /app/asus-control
+      - chmod -s /app/asus-control/chrome-sandbox || true
+      - install -Dm755 build-aux/flatpak/asus-control.sh /app/bin/asus-control
+      - install -Dm644 build-aux/flatpak/io.github.youtonghy.asuscontrol.desktop /app/share/applications/io.github.youtonghy.asuscontrol.desktop
+      - install -Dm644 resources/icon.png /app/share/icons/hicolor/512x512/apps/io.github.youtonghy.asuscontrol.png
+      - install -Dm644 resources/icon.svg /app/share/icons/hicolor/scalable/apps/io.github.youtonghy.asuscontrol.svg
+      - install -Dm644 build-aux/flatpak/io.github.youtonghy.asuscontrol.metainfo.xml /app/share/metainfo/io.github.youtonghy.asuscontrol.metainfo.xml
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - node_modules
+          - dist
+          - .git
+          - .flatpak-builder
+          - build-flatpak
+          - build-aux/flatpak/prod-deps
+      - type: file
+        url: file:///home/jh/.cache/electron/bfa62fe1b54e5e709b522b5f731c7644136b8ab3a8123f8d2facc4ecf2b925fe/electron-v44.4.5-linux-x64.zip
+        sha256: 04586a0ec46c3283fbdaef85530f561f71f0b5e136ad0cb9ef63683615609780
+        dest: electron
